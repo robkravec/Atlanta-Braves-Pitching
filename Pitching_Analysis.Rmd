@@ -1,0 +1,67 @@
+---
+title: "Atlanta Braves Pitching Analysis"
+author: "Rob Kravec"
+date: "12/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# Set global chunk options
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F)
+
+# Load libraries
+library(tidyverse)
+library(vroom)
+```
+
+Read in Statcast data for Braves pitchers from 2017-2020 (including playoffs)
+
+```{r read-merge-data}
+# Create function to read in data. Several columns had data types changed in 
+# 2020, so we manually assign the data type of our choosing for those columns
+read_braves <- function(year) {
+  file_name <- paste0("data/Braves_", year, ".csv")
+  pitch_data <- vroom(file_name,
+                      col_types = c(release_spin_rate = "d",
+                                    release_speed = "d",
+                                    release_pos_x = "d",
+                                    release_pos_y = "d",
+                                    release_pos_z = "d",
+                                    zone = "d",
+                                    pfx_x = "d",
+                                    pfx_z = "d",
+                                    plate_x = "d",
+                                    plate_z = "d",
+                                    fielder_2 = "c", fielder_3 = "c",
+                                    fielder_4 = "c", fielder_5 = "c",
+                                    fielder_6 = "c", fielder_7 = "c",
+                                    fielder_8 = "c", fielder_9 = "c",
+                                    vx0 = "d", vy0 = "d", vz0 = "d",
+                                    ax = "d", ay = "d", az = "d",
+                                    sz_top = "d", sz_bot = "d",
+                                    effective_speed = "d",
+                                    release_extension = "d"
+                                    )
+                      )
+  return(pitch_data)
+}
+
+# Read in 2017-2020 data using function
+braves_pitch <- map_df(.x = 2017:2020, .f = read_braves)
+
+# Look at summary of output
+glimpse(braves_pitch)
+
+# Based on this summary and the glossary, remove deprecated field
+braves_pitch <- braves_pitch %>% 
+  select(-c(spin_dir, spin_rate_deprecated, break_angle_deprecated, 
+            break_length_deprecated, tfs_deprecated, tfs_zulu_deprecated,
+            umpire))
+
+# Remove duplicate columns for pitcher and catcher ids
+braves_pitch <- braves_pitch %>% 
+  select(-c(pitcher...8, fielder_2...42)) %>% 
+  rename(pitcher = pitcher...60, fielder_2 = fielder_2...61)
+```
+
+
