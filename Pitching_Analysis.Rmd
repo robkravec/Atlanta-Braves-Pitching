@@ -13,6 +13,9 @@ knitr::opts_chunk$set(echo = TRUE, message = F, warning = F)
 library(tidyverse)
 library(vroom)
 library(patchwork)
+library(ggrepel)
+library(ggiraph)
+library(htmlwidgets)
 ```
 
 ## Introduction
@@ -84,7 +87,7 @@ From 2008 to 2016, pitch velocities were measured via PitchF/x
 
 ### Who threw the most pitches for the Braves in each year?
 
-```{r aggregate}
+```{r 1-most-pitches}
 # Create data frame that contains top 10 pitch throwers per season
 top_pitches <- braves_pitch %>% 
   group_by(game_year) %>% 
@@ -150,7 +153,104 @@ pitch-level insights. While it was fun to look at pitch totals across seasons,
 summary statistics (which we could easily find elsewhere) would probably provide
 more intuitive and meaningful insights.
 
-### Question 2
+### Among the most common pitch types, which pitchers have the most pitch movement?
+
+#### Fastballs
+
+&nbsp;
+
+```{r 2-movement-fastballs}
+# Prepare dataset
+fastballs <- braves_pitch %>% 
+  filter(pitch_name %in% c("2-Seam Fastball", "4-Seam Fastball",
+                           "Cutter", "Sinker")) %>% 
+  group_by(player_name, pitch_name, p_throws) %>% 
+  summarise(cnt = n(),
+            x_move = median(pfx_x), # Reduce influence of extreme cases with median
+            z_move = median(pfx_z),
+            velo = median(release_speed)) %>% 
+  filter(cnt >= 50) %>% # Remove pitcher / pitch combos with fewer than 50 occurrences
+  ungroup() %>% 
+  mutate(x_move_mod = ifelse(p_throws == "L", -x_move, x_move),
+         x_move_abs = abs(x_move), # Corrects for difference in L vs. R hand pitchers
+         total_move = sqrt(x_move ^ 2 + z_move ^ 2) # Define Pythagorean tot movement
+         ) %>%  
+  group_by(pitch_name) %>% 
+  arrange(pitch_name, desc(total_move)) #%>% 
+  #slice(1:10)
+# Ultimately decided not to filter by total movement for fastballs because vertical
+# movement is tricky for fastballs. While it is generally accepted as a positive
+# attribute for 4-seam fastballs, the same cannot be said for 2-seam fastballs, 
+# cutters, and sinkers. In fact, lower values of vertical movement for 
+# 2-seam fastballs and sinkers is likely desirable (e.g., a rising sinker is bad)
+
+# Generate interactive scatterplot using ggirafe
+fastball_plot <- ggplot(data = fastballs, 
+       mapping = aes(x = x_move_mod, y = z_move)) +
+  geom_jitter_interactive(mapping = aes(size = velo,
+                                       tooltip = paste0("Player: ", player_name, 
+                                                        "\n Avg velo: ",
+                                                        round(velo, 1), " MPH"))
+                         , color = "red3") +
+  labs(x = "Horizontal movement [ft]",
+       y = "Vertical movement [ft]",
+       title = "Fastball-type pitches with greatest avg movement",
+       size = "Velocity [mph]") +
+  facet_wrap(~pitch_name) +
+  scale_size_continuous(range = c(0.5, 1.5)) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+# Save plot as .html file
+fastball_plot_interactive <- girafe(code = print(fastball_plot))
+withr::with_dir('plots', saveWidget(fastball_plot_interactive,
+                                    file="fastball_movement.html"))
+# Last command is necessary to save plot into "plots/" directory. saveWidget
+# has an issue with relative paths
+```
+
+This exercise gave some good practice with interactive plotting and showed the
+importance of using intuition during the EDA process. At first, it seemed like
+a good idea to use a Pythagorean definition of total movement (i.e., sqrt of
+sum of squared x and z movement components) to select pitchers with better
+than average movement on their pitches. However, upon reviewing the resulting
+filtered scatterplots, it became apparent that something was wrong (due to the
+absence of expected names): Some pitches (namely 2-seam fastballs and sinkers)
+are actually better if they have less positive z-directional movement. 
+
+To combat this issue, I decided to include all pitchers who threw at least 50
+of that pitch type and use interactive points (through ggirafe) to give users
+helpful information. This interactivity helps to relieve the crowding issue of
+having many overlapping points in a small space.
+
+A few baseball-related takeaways:
+
+- Peter Moylan's sinker stands out as the most unique pitch on the plot, likely
+due to his atypical sidearm / submarine delivery. Josh Collmenter's cutter
+also stands out (to a lesser degree) for positive vertical movement, likely due
+to his exaggerated overhead delivery
+- A few pitchers that helped me to spot the issue with our Pythagorean movement
+definition for 2-seam fastballs and sinkers include Jonny Venters, Dallas Keuchel,
+Julio Teheran, and Mike Soroka. These pitchers are / were known to have above 
+average pitches in these categories, and it surprised me to see their names 
+omitted from an originally filtered plot
+- Cutters appear to have the least horizontal movement of all of the fastball-type
+pitches, which is doubly interesting because it is the only pitch with glove-side
+movement. It's unclear to me whether the small magnitude of horizontal movement
+is due to (1) the manner in which Statcast data is measured (i.e., some kind of
+offset or bias toward arm-side movement), (2) the natural tendency of fastballs
+to move toward the arm-side, (3) some combination of the above or something else
+entirely!
+
+** Note: This plot provides some insight into the relationship between fastball
+velocity and movement (through the size aesthetic), but I'm not seeing a clear
+trend pop off of the page. A future investigation into this relationship (with
+some different plots and calculations) could be interesting, but I'll move on 
+now to cover additional topics.
+
+#### Off-speed pitches
+
+&nbsp;
 
 EDA wish list:
 
