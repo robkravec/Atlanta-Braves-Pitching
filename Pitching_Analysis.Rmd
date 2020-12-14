@@ -12,7 +12,10 @@ knitr::opts_chunk$set(echo = TRUE, message = F, warning = F)
 # Load libraries
 library(tidyverse)
 library(vroom)
+library(patchwork)
 ```
+
+## Introduction
 
 Read in Statcast data for Braves pitchers from 2017-2020 (including playoffs)
 
@@ -64,4 +67,105 @@ braves_pitch <- braves_pitch %>%
   rename(pitcher = pitcher...60, fielder_2 = fielder_2...61)
 ```
 
+The purpose of this project is to ask and answer some interesting questions 
+about Atlanta Braves pitching from 2017-2020. We don't have a set agenda per se.
+Rather, the project is a success if we uncover some previously unknown insights
+and find compelling ways to present them.
 
+*Why the Atlanta Braves?* I wanted to keep the amount of data manageable, so
+I elected to focus on my favorite team
+*Why 2017-2020?* There is no special significance to this time period. I wanted
+to keep the amount of data manageable while still being able to look at
+multiple (recent) seasons. 2017-2020 provided a reasonable solution, while
+also ensuring that all velocities were measured with a single system (Statcast).
+From 2008 to 2016, pitch velocities were measured via PitchF/x
+
+## EDA
+
+### Who threw the most pitches for the Braves in each year?
+
+```{r aggregate}
+# Create data frame that contains top 10 pitch throwers per season
+top_pitches <- braves_pitch %>% 
+  group_by(game_year) %>% 
+  count(player_name) %>% 
+  arrange(desc(n)) %>% 
+  slice(1:10) %>% 
+  rename(pitches = n)
+
+# Write function to generate desired plot for the given year
+plot_pitches <- function(year){
+  top_pitches %>% 
+    filter(game_year == year) %>% 
+    ggplot(mapping = aes(x = reorder(player_name, - pitches), y = pitches)) +
+    geom_bar(stat = "identity", fill = "red3") +
+    labs(y = "Pitches thrown",
+         title = paste0(year)) +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5),
+          panel.grid.major.x = element_blank(),
+          axis.text.x = element_text(angle = 30, hjust = 1),
+          axis.title.x = element_blank()) 
+}
+
+# Create individual plots required to make patchwork plot of pitch leaders
+# for 2017-2020
+for (i in 2017:2020) {
+  plot_name <- paste0("pitch_", i)
+  assign(plot_name, plot_pitches(i))
+}
+
+# Build patchwork plot
+patch_plot <- (pitch_2017 + pitch_2018) / (pitch_2019 + pitch_2020)
+patch_plot <- patch_plot + plot_annotation(
+  title = "Atlanta Braves leaders in pitches thrown per year",
+  theme = theme(plot.title = element_text(hjust = 0.5, size = 20))) 
+patch_plot
+
+# Save plot
+ggsave(plot = patch_plot, path = "plots/", filename = "total_pitches.png")
+```
+
+Normally, in summarizing a pitcher's work for a given season, we tend to think
+about inning totals, not pitch totals. We opted for pitch totals here due to the
+unique nature of the Statcast data, and I think the results are pretty 
+interesting! 
+
+- The turnover on the Braves' pitching staff year-to-year is quite significant!
+Of course, we would need to contextualize (relative to other teams) before 
+making any meaningful statements about turnover being more or less than average
+- We see clear evidence of the Braves' proclivity for bringing in veteran 
+pitchers on short contracts: R.A. Dickey, Jaime Garcia, and Bartolo Colon in 
+2017, Anibal Sanchez in 2018, Dallas Keuchel in 2019. Cole Hamels is noticeably
+absent from the 2020 plot after a shoulder injury (essentially wasting his $18M
+one year contract)
+- 2020 was a weird season! Likely due to their prominence in the playoffs, Ian
+Anderson and Kyle Wright make the top 3 pitch throwers for the Braves. After
+those two and Max Fried, we see a slew of relievers. Chris Martin and Mark 
+Melancon (two of the highest leverage arms in the bullpen) threw about 400
+pitches each and just missed appearing in the 2020 plot
+
+From here, we'll try to leverage the Statcast data for its strengths: individual
+pitch-level insights. While it was fun to look at pitch totals across seasons,
+summary statistics (which we could easily find elsewhere) would probably provide
+more intuitive and meaningful insights.
+
+### Question 2
+
+EDA wish list:
+
+- Movement of pitches
+- Most effective pitches in terms of outcomes
+- Pitches that are mostly likely to be strikes, balls, taken, swung at
+- Pitch velocity over time for pitchers (during game, during season, year-to-year)
+- Umpire accuracy by pitcher, by point in game (e.g., inning, runners on)
+
+Visualization wish list:
+
+- Plot the trajectory of a pitch
+- Mock-up a strike-zone and have pitches come (like MLB Gameday)
+
+Modeling wish list:
+
+- Pitch classification algorithm
+- Predict which pitch will be thrown in certain situations
