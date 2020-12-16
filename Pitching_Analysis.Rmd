@@ -340,6 +340,46 @@ isn't everything
 
 ### How often do umpires make the right ball / strike calls? Are certain pitchers (or in-game situations) more prone to inaccurate calls?
 
+To start with, we'll have to define an "objective strike zone" based on the 
+Statcast data. I'll propose the following rules /assumptions:
+
+- The width (horizontal dimension) of the strike zone is the same as the width
+of home plate (17 inches)
+- The height (vertical dimension) of the strike zone is appropriately described
+by the `sz_top` and `sz_bot` fields
+- The `plate_x` and `plate_z` fields are defined based on the center of the
+baseball at the time it crosses home plate
+- A regulation baseball has a diameter of 3 inches
+- If any part of a baseball is in the strike zone at the time it crosses home
+plate, it should be called a strike
+
+Based on these rules / assumptions, we create an indicator to see whether a pitch
+should have been marked as a ball or a strike. Then, we can compare the true 
+outcome to our expected outcome.
+
+```{r code-strikes}
+# Visualize coordinates for each Statcast zone (just to make sure I'm
+# understanding the coordinate system properly)
+coord_system <- ggplot(data = braves_pitch, 
+       mapping = aes(x = plate_x, y = plate_z, color = as.factor(zone))) +
+  geom_point() +
+  labs(x = "x-position", y = "z-position", 
+       title = "Visualizing coordinate system",
+       color = "Zone",
+       caption = "We can conclude that the horizontal axis is centered at 0") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust = 0.5)) +
+  lims(x = c(-3, 3), y = c(-1, 6)) 
+coord_system
+
+# The plot turned out to be quite aesthetically pleasing, so I'll save it
+ggsave(plot = coord_system, path = "plots/", filename = "coord_system.png")
+
+# Create expected ball / strike indicator
+```
+
+
 EDA wish list:
 
 - Most effective pitches in terms of outcomes
