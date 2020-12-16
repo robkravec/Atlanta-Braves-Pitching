@@ -194,15 +194,16 @@ fastball_plot <- ggplot(data = fastballs,
                          , color = "red3") +
   labs(x = "Horizontal movement [ft]",
        y = "Vertical movement [ft]",
-       title = "Fastball-type pitches with greatest avg movement",
+       title = "Movement of fastball-type pitches",
        size = "Velocity [mph]") +
   facet_wrap(~pitch_name) +
   scale_size_continuous(range = c(0.5, 1.5)) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5)) 
 
-# Save plot as .html file
+# Display plot and save as .html file 
 fastball_plot_interactive <- girafe(code = print(fastball_plot))
+fastball_plot_interactive
 withr::with_dir('plots', saveWidget(fastball_plot_interactive,
                                     file="fastball_movement.html"))
 # Last command is necessary to save plot into "plots/" directory. saveWidget
@@ -252,9 +253,95 @@ now to cover additional topics.
 
 &nbsp;
 
+To determine which off-speed pitches to focus on, let's see how many pitchers 
+threw at least 50 of each pitch.
+
+```{r pitch-counts}
+braves_pitch %>% 
+  count(player_name, pitch_name) %>% 
+  filter(n >= 50) %>% 
+  count(pitch_name) %>% 
+  arrange(desc(n))
+```
+
+From this result, it is pretty safe to say that we can focus on sliders, 
+changeups, and curveballs in this section.
+
+To differentiate slightly from the previous section on fastball-type
+pitch movement, we'll find the percentage of pitches for each pitcher that
+are sliders, changeups, and curveballs. This information can then be conveyed 
+through the size aesthetic (instead of velocity).
+
+```{r pitch-percentages}
+# Compute total number of pitches thrown by each Braves pitcher
+total_pitches <- braves_pitch %>% 
+  count(player_name) %>% 
+  arrange(desc(n))
+
+# Create data frame corresponding to off-speed pitches of interest
+offspeed <- braves_pitch %>% 
+  group_by(player_name, pitch_name, p_throws) %>% 
+  summarise(cnt = n(),
+            x_move = median(pfx_x), # Reduce influence of extreme cases with median
+            z_move = median(pfx_z),
+            velo = median(release_speed)
+            ) %>% 
+  filter(cnt >= 50, pitch_name %in% c("Slider", "Changeup", "Curveball")) %>% 
+  ungroup() %>% 
+  # Correct for difference in L vs. R hand pitchers
+  mutate(x_move_mod = ifelse(p_throws == "L", -x_move, x_move)) 
+
+# Join total_pitches data frame to offspeed
+offspeed_join <- left_join(x = offspeed, y = total_pitches,
+                           by = c("player_name"))
+
+# Create additional column corresponding to % of total pitches thrown
+offspeed_join <- offspeed_join %>% 
+  mutate(perc = 100 * round(cnt / n, 3))
+
+# Generate interactive plot  
+offspeed_plot <- ggplot(data = offspeed_join, 
+       mapping = aes(x = x_move_mod, y = z_move)) +
+  geom_jitter_interactive(mapping = aes(size = perc,
+                                       tooltip = paste0("Player: ", player_name, 
+                                                        "\n Avg velo: ",
+                                                        round(velo, 1), " MPH",
+                                                        "\n % of total pitches: ",
+                                                        perc, "%")), 
+                          color = "red3") +
+  labs(x = "Horizontal movement [ft]",
+       y = "Vertical movement [ft]",
+       title = "Movement of offspeed pitches",
+       size = "% total pitches") +
+  facet_wrap(~pitch_name, dir = "v") +
+  scale_size_continuous(range = c(0.5, 1.5)) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+# Display plot and save as .html file 
+offspeed_plot_interactive <- girafe(code = print(offspeed_plot))
+offspeed_plot_interactive
+withr::with_dir('plots', saveWidget(offspeed_plot_interactive,
+                                    file="offspeed_movement.html"))
+```
+
+A few things that stand out to me (more for fun than meaningful insight):
+
+- Josh Collmenter again stands out for exceptional rise, this time on his 
+changeup, which he throws about 30% of the time
+- I now understand (at least part of) why hitters look so silly against Chris
+Martin's and Shane Greene's slider. These pitches have a ton of horizontal 
+movement!
+- It's comforting to see that Max Fried's curveball has the most vertical drop
+of any offspeed pitch considered. I did not expect, however, that Sean Newcomb, 
+Robbie Erlin, and Jesse Biddle would have curveballs that come next on that list.
+I would consider these data points to be a great illustration that "stuff" 
+isn't everything
+
+### How often do umpires make the right ball / strike calls? Are certain pitchers (or in-game situations) more prone to inaccurate calls?
+
 EDA wish list:
 
-- Movement of pitches
 - Most effective pitches in terms of outcomes
 - Pitches that are mostly likely to be strikes, balls, taken, swung at
 - Pitch velocity over time for pitchers (during game, during season, year-to-year)
