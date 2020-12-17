@@ -157,7 +157,6 @@ more intuitive and meaningful insights.
 
 #### Fastballs
 
-&nbsp;
 
 ```{r 2-movement-fastballs}
 # Prepare dataset
@@ -251,7 +250,6 @@ now to cover additional topics.
 
 #### Off-speed pitches
 
-&nbsp;
 
 To determine which off-speed pitches to focus on, let's see how many pitchers 
 threw at least 50 of each pitch.
@@ -338,20 +336,21 @@ Robbie Erlin, and Jesse Biddle would have curveballs that come next on that list
 I would consider these data points to be a great illustration that "stuff" 
 isn't everything
 
-### How often do umpires make the right ball / strike calls? Are certain pitchers (or in-game situations) more prone to inaccurate calls?
+### How often do umpires make the right ball / strike calls? Are certain pitchers  more prone to inaccurate calls?
 
 To start with, we'll have to define an "objective strike zone" based on the 
-Statcast data. I'll propose the following rules /assumptions:
+Statcast data. I'll propose the following rules /assumptions (based mostly on 
+trial and error with plotted results):
 
-- The width (horizontal dimension) of the strike zone is the same as the width
-of home plate (17 inches)
+- The width (horizontal dimension) of the strike zone is equal to the width of
+home plate (17 inches)
 - The height (vertical dimension) of the strike zone is appropriately described
 by the `sz_top` and `sz_bot` fields
 - The `plate_x` and `plate_z` fields are defined based on the center of the
 baseball at the time it crosses home plate
 - A regulation baseball has a diameter of 3 inches
-- If any part of a baseball is in the strike zone at the time it crosses home
-plate, it should be called a strike
+- For a pitch to be called a strike, the baseball must at least touch the edge
+of the strike zone
 
 Based on these rules / assumptions, we create an indicator to see whether a pitch
 should have been marked as a ball or a strike. Then, we can compare the true 
@@ -377,6 +376,112 @@ coord_system
 ggsave(plot = coord_system, path = "plots/", filename = "coord_system.png")
 
 # Create expected ball / strike indicator
+ball_rad <- 1.5 / 12 # Baseball radius in feet
+plate_width <- 17 / 12 # Width of front of plate in feet
+braves_pitch <- braves_pitch %>% 
+  mutate(exp_call = case_when(
+    type == "X" ~ "X", # If ball is put in play, we don't call it ball or strike
+    abs(plate_x) > plate_width / 2 + ball_rad ~ "B", # Pitch is inside or outside
+    plate_z > sz_top + ball_rad ~ "B", # Pitch is high
+    plate_z < sz_bot - ball_rad ~ "B", # Pitch is low
+    TRUE ~ "S" # All other pitches should be called a strike
+  ))
+
+### Quick visualization of our expected ball and strike calls vs. reality:
+### For this visualization, it would be best to plot the strikes on top of the 
+### balls to see the extent of the true strike zone
+
+# Create data frame with only balls and called strikes
+taken_pitches <- braves_pitch %>% 
+  filter(description %in% c("ball", "called_strike"))
+  
+# Step 1: Plot of expected calls
+expected_call_plot <- ggplot() +
+  geom_point(subset(taken_pitches, exp_call == "B"),
+             mapping = aes(x = plate_x, y = plate_z, color = "B")) +
+  geom_point(subset(taken_pitches, exp_call == "S"),
+             mapping = aes(x = plate_x, y = plate_z, color = "S")) +
+  labs(x = "x-position", y = "z-position", 
+       title = "Expected ball / strike calls",
+       color = "Expected call") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  lims(x = c(-3, 3), y = c(-1, 6)) 
+
+# Step 2: Plot of actual calls
+actual_call_plot <- ggplot() +
+  geom_point(subset(taken_pitches, type == "B"),
+             mapping = aes(x = plate_x, y = plate_z, color = "B")) +
+  geom_point(subset(taken_pitches, type == "S"),
+             mapping = aes(x = plate_x, y = plate_z, color = "S")) +
+  labs(x = "x-position", y = "z-position", 
+       title = "Actual ball / strike calls",
+       color = "Actual call") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  lims(x = c(-3, 3), y = c(-1, 6)) 
+
+# Step 3: Patchwork combination of two plots above
+strikezone_compare <- expected_call_plot + actual_call_plot
+
+# Save plot
+ggsave(plot = strikezone_compare, path = "plots/", 
+       filename = "strikezone_compare.png")
+```
+
+From this comparison plot, we can see that:
+
+- Our "objective" strike zone may be a bit narrower than the one that most 
+umpires enforce. A strike heat map would do a better job showing how often
+pitches on the horizontal fringes of the strike zone are called strikes
+- The actual strike zone follows more of an oval than a rectangle, suggesting
+that umpires will allow pitches to push the bounds in one direction (but not
+both at the same time)
+
+From here, we can compare our expected ball / strike call with the actual call
+in a more quantitative manner
+
+```{r compare-expected-to-actual}
+# Add column to denote whether expected call agrees with actual call
+taken_pitches <- taken_pitches %>%
+  relocate(type, .after = of_fielding_alignment) %>% 
+  mutate(correct_call = ifelse(type == exp_call, 1, 0)) 
+
+# How often is the expected call made?
+mean(taken_pitches$correct_call) 
+
+# In which direction is there more likely to be a discrepancy?
+mean(subset(taken_pitches, exp_call == "B")$correct_call) # We expect B, called B
+mean(subset(taken_pitches, exp_call == "S")$correct_call) # We expect S, called S
+mean(subset(taken_pitches, type == "B")$correct_call) # Called B, expect B
+mean(subset(taken_pitches, type == "S")$correct_call) # Called S, expect S
+
+# Plot discrepancies
+taken_pitches %>% 
+  filter(correct_call == 0) %>% 
+  ggplot(mapping = aes(x = plate_x, y = plate_z)) + geom_point() +
+  theme_bw() +
+  labs(x = "x-position", y = "z-position",
+       title = "Pitch call discrepancies") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  lims(x = c(-3, 3), y = c(-1, 6)) 
+```
+
+We observe 90% agreement between our proposed strike zone and actual ball / 
+strike calls. The highest incidence of disagreement occurs on pitches that
+are called strikes in reality (of which we expect 18% to be called balls). 
+
+From here, we could look at whether a number of different factors (e.g., count,
+batter handedness, pitcher handedness, score, runners on base) affect the size
+of the strike zone. For example, I found a 2012 Fangraphs 
+[article](https://blogs.fangraphs.com/the-size-of-the-strike-zone-by-count/) 
+that measures the area of the strike zone by count and batter handedness.
+
+Instead of embarking on that path, however, I'll look into whether some Braves
+pitchers have more "missed calls" than others and try to understand why.
+
+```{r miss-rates-by-pitcher}
+
 ```
 
 
