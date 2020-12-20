@@ -477,20 +477,50 @@ of the strike zone. For example, I found a 2012 Fangraphs
 [article](https://blogs.fangraphs.com/the-size-of-the-strike-zone-by-count/) 
 that measures the area of the strike zone by count and batter handedness.
 
-Instead of embarking on that path, however, I'll look into whether some Braves
-pitchers have more "missed calls" than others and try to understand why.
+Instead, we'll pump the breaks here and recognize that strike zones are quite
+complex and could easily be the subject of their own, dedicated project. For 
+the sake of continuing to investigate different attributes of this data set,
+we quickly check to see if there is a noticeable trend for Braves pitchers 
+related to the percentage of "missed calls" Sadly, nothing in particular stands
+out to me (other the large spread in incidence of these "missed calls"), and I'd
+like to give this topic more time and attention down the road.
 
 ```{r miss-rates-by-pitcher}
+# Create indicator of different miss types
+taken_pitches <- taken_pitches %>% 
+  mutate(disagree_called_ball = ifelse(correct_call == 0 & type == "B", 1, 0),
+         disagree_called_strike = ifelse(correct_call == 0 & type == "S", 1, 0),
+         ball = ifelse(type == "B", 1, 0),
+         strike = ifelse(type == "S", 1, 0)
+         )
 
+# Summarise results by pitcher
+miss_summary <- taken_pitches %>% 
+  group_by(player_name) %>% 
+  summarise(pitches = n(),
+            strikes = sum(strike),
+            balls = sum(ball),
+            miss_call = 1 - mean(correct_call),
+            miss_called_ball = sum(disagree_called_ball),
+            miss_called_strike = sum(disagree_called_strike)
+            ) %>% 
+  mutate(stolen_strike_perc = miss_called_strike / strikes,
+         unwarranted_ball = miss_called_ball / balls,
+         delta = miss_called_strike / strikes - miss_called_ball / balls) %>% 
+  filter(pitches >= 100, strikes >= 50) %>% 
+  arrange(desc(miss_call))
 ```
 
+### How effectively can a simple model classify pitches for a single pitcher? To what extent does performance degree for multiple pitchers?
+
+[](https://technology.mlblogs.com/mlb-pitch-classification-64a1e32ee079)
 
 EDA wish list:
 
 - Most effective pitches in terms of outcomes
 - Pitches that are mostly likely to be strikes, balls, taken, swung at
 - Pitch velocity over time for pitchers (during game, during season, year-to-year)
-- Umpire accuracy by pitcher, by point in game (e.g., inning, runners on)
+- In-depth scouting report on particular pitcher(s) of interest
 
 Visualization wish list:
 
@@ -499,5 +529,5 @@ Visualization wish list:
 
 Modeling wish list:
 
-- Pitch classification algorithm
+- Pitch classification algorithm (for specific pitcher?)
 - Predict which pitch will be thrown in certain situations
