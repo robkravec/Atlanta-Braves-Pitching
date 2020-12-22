@@ -17,6 +17,11 @@ library(ggrepel)
 library(ggiraph)
 library(htmlwidgets)
 library(splitstackshape)
+library(xgboost)
+library(caret)
+
+# Set random seed
+set.seed(1995)
 ```
 
 ## Introduction
@@ -94,7 +99,7 @@ top_pitches <- braves_pitch %>%
   group_by(game_year) %>% 
   count(player_name) %>% 
   arrange(desc(n)) %>% 
-  slice(1:10) %>% 
+  dplyr::slice(1:10) %>% 
   rename(pitches = n)
 
 # Write function to generate desired plot for the given year
@@ -177,7 +182,7 @@ fastballs <- braves_pitch %>%
          ) %>%  
   group_by(pitch_name) %>% 
   arrange(pitch_name, desc(total_move)) #%>% 
-  #slice(1:10)
+  #dplyr::slice(1:10)
 # Ultimately decided not to filter by total movement for fastballs because vertical
 # movement is tricky for fastballs. While it is generally accepted as a positive
 # attribute for 4-seam fastballs, the same cannot be said for 2-seam fastballs, 
@@ -430,26 +435,156 @@ plot_repertoire <- function(pitcher_name, years = 2017:2020) {
 plot_repertoire(pitcher_name = "Max Fried", years = 2020)
 plot_repertoire(pitcher_name = "Will Smith")
 plot_repertoire(pitcher_name = "Luke Jackson", years = 2018:2019)
-plot_repertoire(pitcher_name = "Rob Kravec") # Expected to fail
-plot_repertoire(pitcher_name = "Max Fried", years = 2016) # Expected to fail
+#plot_repertoire(pitcher_name = "Rob Kravec") # Expected to fail
+#plot_repertoire(pitcher_name = "Max Fried", years = 2016) # Expected to fail
 
 # Save plot of Max Fried's arsenal for 2020
 max_fried <- plot_repertoire(pitcher_name = "Max Fried", years = 2020)
 ggsave(plot = max_fried, path = "plots/", filename = "fried_arsenal.png")
+```
 
+Next, we'll transition to our modeling work flow, starting with an XGBoost model
+without hyperparameter tuning. Credit to two articles that provided tactical
+guidance on how best to work with XGBoost: 
 
-# Save for later... columns that will be helpful for modeling
+- [1](https://xgboost.readthedocs.io/en/latest/R-package/xgboostPresentation.html)
+- [2](https://towardsdatascience.com/getting-to-an-hyperparameter-tuned-xgboost-model-in-no-time-a9560f8eb54b)
+
+```{r xgboost}
+###### REMOVE WHEN DONE TROUBLESHOOTING
+pitcher_name <- "R.A. Dickey"
+year <- 2017
+
+# Define function to build XGBoost classification model for specified pitcher
+# and year
+pitch_classify <- function(pitcher_name, year = 2020) {
+  
+  # Filter pitch-level data based on function arguments, and only keep columns
+  # suspected to be relevant for modeling
+  filter_data <- braves_pitch %>% 
+    filter(player_name == pitcher_name, game_year == year,
+           !(pitch_name %in% c("Eephus", "Pitch Out")),
+           !is.null(pitch_name), !is.na(pitch_name)) %>% 
     select(pitch_name, release_speed, release_pos_x, release_pos_y, 
            stand, balls, strikes, pfx_x, pfx_z, plate_x, plate_z, outs_when_up,
-           inning, release_spin_rate, release_extension, release_pos_y)
-    
+           inning, release_spin_rate, release_extension, release_pos_y) %>% 
+    mutate(pitch_name = as.factor(pitch_name))
+  
+  # Early exit for empty data frame
+  if (nrow(filter_data) == 0) {
+    warning(paste0("Sorry, we don't have any data for that pitcher and year ",
+    "combination. Please try again!"))
+    return("")
+  }
+  
+  ## Create 70/15/15 train/test/validation split
+  train_rows <- sample(1:nrow(filter_data), 
+                       size = floor(0.7 * nrow(filter_data)),
+                       replace = F)
+  training <- filter_data[train_rows, ]
+  train_labels <- training[, 1] # Store labels, convert to numeric for XGBoost
+  training[, 1] <- as.numeric(training$pitch_name) - 1
+  # Now that 70% training data has been separated, split remainder evenly 
+  # between test and validation
+  not_training <- filter_data[-train_rows, ]
+  test_rows <- sample(1:nrow(not_training), 
+                       size = floor(0.5 * nrow(not_training)),
+                       replace = F)
+  testing <- not_training[test_rows, ]
+  test_labels <- testing[, 1] # Store labels, convert to numeric for XGBoost
+  testing[, 1] <- as.numeric(testing$pitch_name) - 1
+  validation <- not_training[-test_rows, ]
+  validation_labels <- validation[, 1] # Store labels, convert to numeric for XGBoost
+  validation[, 1] <- as.numeric(validation$pitch_name) - 1
+  
+  # Create key of numbers to pitch names
+  pitch_key <- data.frame(word = train_labels$pitch_name,
+                          number = training$pitch_name) %>% 
+    count(word, number) %>% 
+    arrange(number)
+  
+  ## Properly format train, test, and validation data sets
+  options(na.action = "na.pass") # Keep rows with NAs
+  
+  # Train data
+  train_data <- model.matrix(pitch_name ~ ., data = training)
+  train_data_xg <- xgb.DMatrix(data = train_data,
+                               label = training$pitch_name)
+  # Test data
+  test_data <- model.matrix(pitch_name ~ ., data = testing)
+  test_data_xg <- xgb.DMatrix(data = test_data,
+                               label = testing$pitch_name)
+  
+  # Validation data
+  validation_data <- model.matrix(pitch_name ~ ., data = validation)
+  validation_data_xg <- xgb.DMatrix(data = validation_data)
+  validation_labels_numeric <- validation[, 1]
+  
+  # Fit model
+  params <- list(booster = "gbtree",
+                 objective = "multi:softmax", # multi-class classification 
+                 num_class = length(unique(training$pitch_name))
+                 )
+  watch <- list(train = train_data_xg, test = test_data_xg)
+  xgb_fit <- xgb.train(params = params,
+                        data = train_data_xg,
+                        nrounds = 1000,
+                        print_every_n = 1000,
+                        eval_metric = "merror", #(wrong cases) / #(all cases)
+                        early_stopping_rounds = 25, 
+                        watchlist = watch,
+                        verbose = F
+                        )
+  
+  # Plot training error and classification error
+  plot_data <- xgb_fit$evaluation_log
+  plot1 <- ggplot(data = plot_data, mapping = aes(x = iter)) +
+    geom_line(mapping = aes(y = train_merror, color = "Train error")) +
+    geom_line(mapping = aes(y = test_merror, color = "Test error")) +
+    labs(x = "Iteration number", y = "Classification error",
+         title = "Classification error vs. iteration number",
+         subtitle = paste0(pitcher_name, ", ", year),
+         color = "Legend") +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5))
+  print(plot1)
+  
+  # Predict labels on validation set
+  validation_pred <- predict(xgb_fit, validation_data_xg)
+  validation_pred_df <- data.frame(number = validation_pred)
+  validation_pred_df <- left_join(x = validation_pred_df, y = pitch_key,
+                                  by = "number")
+  
+  # Quantify validation set error rate
+  print(paste0("Validation classification accuracy: ", 
+               round(mean(validation_pred_df$number == 
+                            validation_labels_numeric$pitch_name), 4)))
+  
+  # Display confusion matrix
+  conf_matrix <- confusionMatrix(data = as.factor(validation_pred_df$word), 
+                  reference = validation_labels$pitch_name)$table
+  print(conf_matrix)
+  
+  # Display feature importance
+  importance_matrix <- xgb.importance(model = xgb_fit)
+  xgb.plot.importance(importance_matrix = importance_matrix, top_n = 7,
+                      rel_to_first = T, main = "Relative feature importance")
+}
+
+# Test function
+pitch_classify(pitcher_name = "Julio Teheran", year = 2017)
+pitch_classify(pitcher_name = "R.A. Dickey", year = 2017)
+pitch_classify(pitcher_name = "Mike Foltynewicz", year = 2018)
+pitch_classify(pitcher_name = "Mike Soroka", year = 2019)
+pitch_classify(pitcher_name = "Max Fried", year = 2020)
 ```
+
 
 Remaining steps:
 
-- Split train / test / validation
-- Train model
-- Perform cross-validation
+- Figure out how to filter out NULL values (ask Marc)
+- Perform cross-validation and/or hyper-parameter tuning?
 - Report on results for a few pitchers of interest
 - Investigate areas of systematic (or even sporadic) underperformance
 - Write a README
