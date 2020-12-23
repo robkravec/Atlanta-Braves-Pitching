@@ -1,8 +1,10 @@
 ---
 title: "Atlanta Braves Pitching Analysis"
 author: "Rob Kravec"
-date: "12/14/2020"
-output: html_document
+date: "12/23/2020"
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -207,7 +209,12 @@ fastball_plot <- ggplot(data = fastballs,
   theme(plot.title = element_text(hjust = 0.5)) 
 
 # Display plot and save as .html file 
-fastball_plot_interactive <- girafe(code = print(fastball_plot))
+fastball_plot_interactive <- girafe({code = print(fastball_plot)},
+                                    options = list(
+                                      opts_tooltip(use_fill = T),
+                                      opts_hover(css = "color:blue;"),
+                                      opts_sizing(rescale = TRUE, width = .7)
+                                      ))
 fastball_plot_interactive
 withr::with_dir('plots', saveWidget(fastball_plot_interactive,
                                     file="fastball_movement.html"))
@@ -323,7 +330,12 @@ offspeed_plot <- ggplot(data = offspeed_join,
   theme(plot.title = element_text(hjust = 0.5)) 
 
 # Display plot and save as .html file 
-offspeed_plot_interactive <- girafe(code = print(offspeed_plot))
+offspeed_plot_interactive <- girafe({code = print(offspeed_plot)},
+                                    options = list(
+                                      opts_tooltip(use_fill = T),
+                                      opts_hover(css = "color:blue;"),
+                                      opts_sizing(rescale = TRUE, width = .7)
+                                      ))
 offspeed_plot_interactive
 withr::with_dir('plots', saveWidget(offspeed_plot_interactive,
                                     file="offspeed_movement.html"))
@@ -444,16 +456,9 @@ ggsave(plot = max_fried, path = "plots/", filename = "fried_arsenal.png")
 ```
 
 Next, we'll transition to our modeling work flow, starting with an XGBoost model
-without hyperparameter tuning. Credit to two articles that provided tactical
-guidance on how best to work with XGBoost
-([1](https://xgboost.readthedocs.io/en/latest/R-package/xgboostPresentation.html)
-and [2](https://towardsdatascience.com/getting-to-an-hyperparameter-tuned-xgboost-model-in-no-time-a9560f8eb54b))
+without hyperparameter tuning
 
 ```{r xgboost}
-###### REMOVE WHEN DONE TROUBLESHOOTING
-pitcher_name <- "R.A. Dickey"
-year <- 2017
-
 # Define function to build XGBoost classification model for specified pitcher
 # and year
 pitch_classify <- function(pitcher_name, year = 2020) {
@@ -463,7 +468,7 @@ pitch_classify <- function(pitcher_name, year = 2020) {
   filter_data <- braves_pitch %>% 
     filter(player_name == pitcher_name, game_year == year,
            !(pitch_name %in% c("Eephus", "Pitch Out")),
-           !is.null(pitch_name), !is.na(pitch_name)) %>% 
+           !is.null(pitch_name), !is.na(pitch_name), pitch_name != "null") %>% 
     select(pitch_name, release_speed, release_pos_x, release_pos_y, 
            stand, balls, strikes, pfx_x, pfx_z, plate_x, plate_z, outs_when_up,
            inning, release_spin_rate, release_extension, release_pos_y) %>% 
