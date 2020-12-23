@@ -20,6 +20,8 @@ The entirety of my analysis is accessible via the [Rmd](https://github.com/robkr
 
 Major League Baseball (MLB) has a sophisticated neural network based software that intakes information about each pitch thrown in real-time and returns a pitch classification (e.g., fastball, curveball, slider). I was curious to see how well a simple gradient boosted model (e.g., no hyperparameter tuning, no feature engineering) would perform at this task when focused on one pitcher at a time. For a handfull of case studies, the validation classification accuracy was 96%+, which exceeded my expectations. That said, I recognize a number of challenges (in my Rmd file) that MLB faces on a regular basis, which likely makes their classification challenge much harder than the one that I performed.
 
+![](plots/fried_arsenal.png)
+
 INSERT PLOTS ONCE READY
 
 ### Interactive plots of pitch movement
