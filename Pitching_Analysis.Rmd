@@ -445,10 +445,9 @@ ggsave(plot = max_fried, path = "plots/", filename = "fried_arsenal.png")
 
 Next, we'll transition to our modeling work flow, starting with an XGBoost model
 without hyperparameter tuning. Credit to two articles that provided tactical
-guidance on how best to work with XGBoost: 
-
-- [1](https://xgboost.readthedocs.io/en/latest/R-package/xgboostPresentation.html)
-- [2](https://towardsdatascience.com/getting-to-an-hyperparameter-tuned-xgboost-model-in-no-time-a9560f8eb54b)
+guidance on how best to work with XGBoost
+([1](https://xgboost.readthedocs.io/en/latest/R-package/xgboostPresentation.html)
+and [2](https://towardsdatascience.com/getting-to-an-hyperparameter-tuned-xgboost-model-in-no-time-a9560f8eb54b))
 
 ```{r xgboost}
 ###### REMOVE WHEN DONE TROUBLESHOOTING
@@ -520,7 +519,7 @@ pitch_classify <- function(pitcher_name, year = 2020) {
   validation_data_xg <- xgb.DMatrix(data = validation_data)
   validation_labels_numeric <- validation[, 1]
   
-  # Fit model
+  # Fit model. We will use the model iteration for which the test error is minimized
   params <- list(booster = "gbtree",
                  objective = "multi:softmax", # multi-class classification 
                  num_class = length(unique(training$pitch_name))
@@ -569,40 +568,53 @@ pitch_classify <- function(pitcher_name, year = 2020) {
   # Display feature importance
   importance_matrix <- xgb.importance(model = xgb_fit)
   xgb.plot.importance(importance_matrix = importance_matrix, top_n = 7,
-                      rel_to_first = T, main = "Relative feature importance")
+                      rel_to_first = T, main = "Relative feature importance",
+                      sub = paste0(pitcher_name, ", ", year))
 }
 
-# Test function
+# Test function on pitcher with most pitches in each year (without repeats)
 pitch_classify(pitcher_name = "Julio Teheran", year = 2017)
-pitch_classify(pitcher_name = "R.A. Dickey", year = 2017)
 pitch_classify(pitcher_name = "Mike Foltynewicz", year = 2018)
 pitch_classify(pitcher_name = "Mike Soroka", year = 2019)
 pitch_classify(pitcher_name = "Max Fried", year = 2020)
 ```
 
+At this point, we could theoretically work on hyperparameter tuning to further
+improve the performance of our models on unseen data. However, the validation
+set performance is already quite good in the examples examined, ranging from
+96.2% - 99.5%. As a result, I'd say that we've accomplished our stated 
+objective of determining whether a rather simple model could do a good job
+classifying pitches.
 
-Remaining steps:
+A couple of observations:
 
-- Figure out how to filter out NULL values (ask Marc)
-- Perform cross-validation and/or hyper-parameter tuning?
-- Report on results for a few pitchers of interest
-- Investigate areas of systematic (or even sporadic) underperformance
-- Write a README
-- Add this project to my website
+- It appears that the decision to model each pitcher separately is warranted.
+Looking at relative feature importance plots, we can see that pitch movement
+is most important for some pitchers (e.g., Mike Foltynewicz, Max Fried), while
+velocity plays the largest role for others (e.g., Julio Teheran). In the future,
+it would be interesting to investigate how much model performance would degrade
+if multiple pitchers were pooled together. 
+- As expected, 2-Seam Fastballs can be tricky to distinguish from 4-Seam 
+Fastballs. Fastballs are occasionally classified as changeups (and vice versa).
+Breaking pitches (e.g., curveball, slider) are another potential culprit of
+misclassification
 
+A couple of caveats:
 
+- The examples shown in this document are all starting pitchers with high 
+numbers of pitchers thrown. This modeling work flow was also tested on relief
+pitchers (not pictured), and results were similarly good
+- This exercise is by no means meant to de-legitimize the complex modeling
+efforts that MLB undertakes for pitch classification. MLB faces additional 
+challenges that may warrant more complex modeling, including but not limited to:
 
-
-
-
-
-
-
-
-
-
-
-
+1. Classifying future pitches with past data. In our modeling effort, we
+simply consider a year's worth of pitches and split into training, testing, and
+validation data. We also do not consider rookie pitchers without a track record
+of past pitches thrown
+2. Facing scrutiny from fans and professionals. It is possible that some of the
+validation classification results that look quite good to us (e.g., 96% accuracy)
+would actually be unacceptable on a national broadcast
 
 ### How often do umpires make the right ball / strike calls? Are certain pitchers  more prone to inaccurate calls?
 
