@@ -12,7 +12,7 @@ In an attempt to limit the potential scope of my investigations (and keep the da
 - Pitching data only
 - 2017 - 2020 regular season and playoffs
 
-The entirety of my analysis is accessible via the [html](https://github.com/robkravec/Atlanta-Braves-Pitching/blob/main/Pitching_Analysis.html) file in this repository, and I will also highlight a sample of my more visually appealing findings below.
+The entirety of my analysis is accessible via the [Rmd](https://github.com/robkravec/Atlanta-Braves-Pitching/blob/main/Pitching_Analysis.Rmd) file in this repository, and I will also highlight a sample of my more visually appealing findings below.
 
 ## Selected findings
 
