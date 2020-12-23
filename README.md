@@ -28,6 +28,8 @@ The example plots below relate to Max Fried's 2020 season:
 
 ![](plots/fried_model2.png)
 
+** Note: pfx_z and pfx_x correspond to vertical and horizontal pitch movement, respectively. release_pos_x and release_pos_y describe the coordinates of the baseball when it is released from the pitcher's hand. plate_x is the x-coordinate of the baseball when it crosses home plate
+
 ### Interactive plots of pitch movement
 
 To gain practice with interactive plotting (through ggiraph), I generated interactive scatterplots of vertical movement vs. horizontal movement for both fastball-type pitches (i.e., 2-seam fastball, 4-seam fastball, cutter, sinker) and offspeed pitches (e.g., changeup, curveball, slider). Each point represents an average for a single pitcher from 2017 - 2020 (or at least the portion of that time that they spent with the Braves). 
