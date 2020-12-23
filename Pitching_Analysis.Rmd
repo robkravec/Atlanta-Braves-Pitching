@@ -587,7 +587,7 @@ pitch_classify(pitcher_name = "Max Fried", year = 2020)
 At this point, we could theoretically work on hyperparameter tuning to further
 improve the performance of our models on unseen data. However, the validation
 set performance is already quite good in the examples examined, ranging from
-96.2% - 99.5%. As a result, I'd say that we've accomplished our stated 
+96.0% - 99.8%. As a result, I'd say that we've accomplished our stated 
 objective of determining whether a rather simple model could do a good job
 classifying pitches.
 
