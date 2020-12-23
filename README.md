@@ -24,6 +24,8 @@ The entirety of my analysis is accessible via the [Rmd](https://github.com/robkr
 
 ![](plots/offspeed.png)
 
+<img src="plots/fastball_movement.html?raw=true"/>
+
 ### Braves pitching staff composition
 
 ![](plots/total_pitches.png)
