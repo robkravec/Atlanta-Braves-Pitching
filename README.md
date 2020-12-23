@@ -20,8 +20,9 @@ The entirety of my analysis is accessible via the [Rmd](https://github.com/robkr
 
 ### Interactive plots of pitch movement
 
-![](plots/fastball_movement.html)
-![](plots/offspeed_movement.html)
+![](plots/fastball.png)
+
+![](plots/offspeed.png)
 
 ### Braves pitching staff composition
 
