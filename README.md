@@ -2,7 +2,7 @@
 
 ## Description
 
-Since I donned my first tee ball jersey, the Atlanta Braves have been my favorite baseball team. Given some free time during a COVID-19 induced, elongated winter break from my Master's program in Statistics at Duke, I decided to delve into some Statcast data to (1) keep my coding skills sharp and (2) learn a few interesting tid-bits about my favorite players.
+Since I donned my first tee ball jersey, baseball has been my favorite sport (and the Atlanta Braves, my favorite team). Given some free time during a COVID-19 induced, elongated winter break from my Master's program in Statistics at Duke, I decided to delve into some Statcast data to (1) keep my coding skills sharp and (2) learn a few interesting tid-bits about my favorite players.
 
 I didn't enter this project with any specific objectives or research questions. Rather, I enjoyed exploring the data freely, posing questions that I encountered along the way, and synthesizing my findings (and potential next steps) at each stopping point.
 
